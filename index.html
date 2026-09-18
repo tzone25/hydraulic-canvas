@@ -13,476 +13,16 @@
       position: fixed; top: 10px; left: 10px; right: 10px; height: 50px;
       background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px);
       border-radius: 12px; display: flex; align-items: center; justify-content: space-between;
-      padding: 0 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); z-index: 100;
-    }
-    .btn-group { display: flex; gap: 6px; }
-    button {
-      background: #007aff; color: white; border: none; padding: 8px 12px;
-      border-radius: 8px; font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 4px;
-    }
-    button.active { background: #34c759; }
-    button.secondary { background: #8e8e93; }
-    button.danger { background: #ff3b30; }
-
-    /* Canvas Grid */
-    svg#canvas {
-      width: 100vw; height: 100vh; background-color: #ffffff;
-      background-image: radial-gradient(#c7c7cc 1.5px, transparent 1.5px);
-      background-size: 20px 20px;
-    }
-
-    /* Symbol & Connection Styling */
-    .component { cursor: move; }
-    .component path, .component rect, .component circle, .component line {
-      stroke: #000000; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round;
-    }
-    .component.selected path, .component.selected rect, .component.selected circle, .component.selected line {
-      stroke: #ff9500 !important; stroke-width: 3 !important;
-    }
-    .component text { font-family: monospace; font-size: 10px; fill: #000000; stroke: none; font-weight: bold; }
-    
-    /* Connection Ports */
-    .port { fill: #007aff; stroke: #ffffff; stroke-width: 2; cursor: pointer; }
-    .port.selected { fill: #ff9500; r: 7; }
-
-    /* Hydraulic Hoses */
-    .hose { stroke: #007aff; stroke-width: 3; fill: none; stroke-linecap: round; stroke-linejoin: round; cursor: pointer; }
-    .hose.selected { stroke: #ff3b30; stroke-width: 5; }
-
-    /* ISO Title Block */
-    #title-block {
-      position: absolute; bottom: 15px; right: 15px; width: 280px; height: 75px;
-      border: 2px solid #000; background: #fff; display: grid;
-      grid-template-columns: 2fr 1fr; grid-template-rows: 1fr 1fr;
-      font-size: 9px; font-family: sans-serif; z-index: 50;
-    }
-    #title-block div { border: 1px solid #000; padding: 3px; }
-    #title-block label { font-size: 7px; color: #555; display: block; text-transform: uppercase; }
-
-    /* Modal Sheet for Symbols */
-    .modal {
-      position: fixed; bottom: -100%; left: 0; right: 0; background: #fff;
-      border-top-left-radius: 20px; border-top-right-radius: 20px;
-      padding: 16px; max-height: 75vh; overflow-y: auto;
-      box-shadow: 0 -5px 25px rgba(0,0,0,0.2); transition: bottom 0.3s ease; z-index: 200;
-    }
-    .modal.open { bottom: 0; }
-    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-weight: bold; }
-    
-    /* Category Filter Tabs */
-    .tabs { display: flex; gap: 6px; overflow-x: auto; margin-bottom: 12px; padding-bottom: 4px; }
-    .tab { background: #e5e5ea; color: #000; padding: 6px 12px; border-radius: 14px; font-size: 11px; font-weight: 600; white-space: nowrap; }
-    .tab.active { background: #007aff; color: #fff; }
-
-    .grid { display: grid; grid-template-columns: repeat( auto-fit, minmax(110px, 1fr) ); gap: 8px; }
-    .card { border: 1px solid #e5e5ea; border-radius: 10px; padding: 10px; text-align: center; font-size: 11px; font-weight: 500; background: #fafafa; }
-    .card:active { background: #e5e5ea; }
-
-    @media print {
-      #toolbar, .modal { display: none !important; }
-      svg#canvas { background-image: none; }
-      @page { size: landscape; margin: 0; }
-    }
-  </style>
-</head>
-<body>
-
-  <!-- Top Action Toolbar -->
-  <div id="toolbar">
-    <div class="btn-group">
-      <button onclick="toggleModal(true)">＋ Symbol</button>
-      <button id="hose-btn" class="secondary" onclick="toggleHoseMode()">🔌 Hose</button>
-      <button class="danger" onclick="deleteSelected()">🗑️</button>
-    </div>
-    <div class="btn-group">
-      <button class="secondary" onclick="saveDiagram()">💾 Save</button>
-      <button onclick="window.print()">🖨️ PDF</button>
-    </div>
-  </div>
-
-  <!-- ISO Title Block -->
-  <div id="title-block">
-    <div style="grid-row: span 2;">
-      <label>Project Title</label>
-      <strong id="tb-title" contenteditable="true" onblur="saveDiagram()">ISO 1219 Hydraulic Schematic</strong>
-    </div>
-    <div>
-      <label>Date</label>
-      <span id="tb-date">2026-09-18</span>
-    </div>
-    <div>
-      <label>Standard</label>
-      <span>ISO 1219-1</span>
-    </div>
-  </div>
-
-  <!-- Main Canvas -->
-  <svg id="canvas" onclick="deselectAll(event)">
-    <g id="hoses-layer"></g>
-    <g id="components-layer"></g>
-  </svg>
-
-  <!-- Symbol Selection Sheet -->
-  <div id="modal" class="modal">
-    <div class="modal-header">
-      <span>ISO 1219 Symbol Library</span>
-      <button class="secondary" onclick="toggleModal(false)">Close</button>
-    </div>
-
-    <div class="tabs">
-      <div class="tab active" onclick="filterCategory('all', this)">All</div>
-      <div class="tab" onclick="filterCategory('pumps', this)">Pumps & Motors</div>
-      <div class="tab" onclick="filterCategory('actuators', this)">Actuators</div>
-      <div class="tab" onclick="filterCategory('valves', this)">Valves</div>
-      <div class="tab" onclick="filterCategory('conditioning', this)">Conditioning & Tanks</div>
-      <div class="tab" onclick="filterCategory('sensors', this)">Sensors</div>
-    </div>
-
-    <div class="grid" id="symbol-grid"></div>
-  </div>
-
-  <script>
-    let components = [];
-    let hoses = [];
-    let hoseMode = false;
-    let selectedPort = null;
-    let selectedComponentId = null;
-    let selectedHoseId = null;
-    let activeDrag = null;
-    let dragOffset = { x: 0, y: 0 };
-
-    // Full ISO 1219 Symbol Standard Library
-    const SYMBOLS = {
-      // PUMPS & MOTORS
-      pump: {
-        category: 'pumps', name: 'Fixed Pump',
-        svg: `<circle cx="25" cy="25" r="18"/><polygon points="25,7 18,20 32,20" fill="#000"/><line x1="25" y1="7" x2="25" y2="0"/><line x1="25" y1="43" x2="25" y2="50"/>`,
-        ports: [{ id: 'P', x: 25, y: 0 }, { id: 'T', x: 25, y: 50 }]
-      },
-      pump_var: {
-        category: 'pumps', name: 'Variable Pump',
-        svg: `<circle cx="25" cy="25" r="18"/><polygon points="25,7 18,20 32,20" fill="#000"/><line x1="25" y1="7" x2="25" y2="0"/><line x1="25" y1="43" x2="25" y2="50"/><line x1="8" y1="42" x2="42" y2="8"/><polygon points="42,8 35,10 39,15" fill="#000"/>`,
-        ports: [{ id: 'P', x: 25, y: 0 }, { id: 'T', x: 25, y: 50 }]
-      },
-      motor: {
-        category: 'pumps', name: 'Hydraulic Motor',
-        svg: `<circle cx="25" cy="25" r="18"/><polygon points="25,43 18,30 32,30" fill="#000"/><line x1="25" y1="7" x2="25" y2="0"/><line x1="25" y1="43" x2="25" y2="50"/>`,
-        ports: [{ id: 'A', x: 25, y: 0 }, { id: 'B', x: 25, y: 50 }]
-      },
-
-      // ACTUATORS
-      cylinder_da: {
-        category: 'actuators', name: 'Double Cylinder',
-        svg: `<rect x="5" y="5" width="60" height="25"/><line x1="30" y1="5" x2="30" y2="30"/><line x1="30" y1="17.5" x2="85" y2="17.5" stroke-width="4"/><line x1="15" y1="30" x2="15" y2="40"/><line x1="50" y1="30" x2="50" y2="40"/>`,
-        ports: [{ id: 'A', x: 15, y: 40 }, { id: 'B', x: 50, y: 40 }]
-      },
-      cylinder_sa: {
-        category: 'actuators', name: 'Spring Cylinder',
-        svg: `<rect x="5" y="5" width="60" height="25"/><line x1="25" y1="5" x2="25" y2="30"/><line x1="25" y1="17.5" x2="80" y2="17.5" stroke-width="4"/><path d="M 25,10 L 32,20 L 39,10 L 46,20 L 53,10 L 60,20 L 65,17.5"/><line x1="15" y1="30" x2="15" y2="40"/>`,
-        ports: [{ id: 'A', x: 15, y: 40 }]
-      },
-
-      // VALVES
-      valve43: {
-        category: 'valves', name: '4/3 DCV Valve',
-        svg: `<rect x="5" y="5" width="25" height="25"/><rect x="30" y="5" width="25" height="25"/><rect x="55" y="5" width="25" height="25"/><line x1="15" y1="30" x2="15" y2="40"/><line x1="25" y1="30" x2="25" y2="40"/><line x1="60" y1="30" x2="60" y2="40"/><line x1="70" y1="30" x2="70" y2="40"/><path d="M 12,25 L 12,10 L 22,10"/><polygon points="22,10 18,7 18,13" fill="#000"/><path d="M 62,10 L 62,25 L 68,25"/><polygon points="68,25 64,22 64,28" fill="#000"/>`,
-        ports: [{ id: 'P', x: 15, y: 40 }, { id: 'T', x: 25, y: 40 }, { id: 'A', x: 60, y: 40 }, { id: 'B', x: 70, y: 40 }]
-      },
-      valve42: {
-        category: 'valves', name: '4/2 DCV Valve',
-        svg: `<rect x="5" y="5" width="25" height="25"/><rect x="30" y="5" width="25" height="25"/><line x1="12" y1="30" x2="12" y2="40"/><line x1="22" y1="30" x2="22" y2="40"/><line x1="38" y1="30" x2="38" y2="40"/><line x1="48" y1="30" x2="48" y2="40"/><line x1="12" y1="25" x2="12" y2="10"/><polygon points="12,10 9,14 15,14" fill="#000"/><line x1="22" y1="10" x2="22" y2="25"/><polygon points="22,25 19,21 25,21" fill="#000"/>`,
-        ports: [{ id: 'P', x: 12, y: 40 }, { id: 'T', x: 22, y: 40 }, { id: 'A', x: 38, y: 40 }, { id: 'B', x: 48, y: 40 }]
-      },
-      valve32: {
-        category: 'valves', name: '3/2 DCV Valve',
-        svg: `<rect x="5" y="5" width="25" height="25"/><rect x="30" y="5" width="25" height="25"/><line x1="12" y1="30" x2="12" y2="40"/><line x1="22" y1="30" x2="22" y2="40"/><line x1="38" y1="30" x2="38" y2="40"/><line x1="12" y1="25" x2="12" y2="10"/><polygon points="12,10 9,14 15,14" fill="#000"/>`,
-        ports: [{ id: 'P', x: 12, y: 40 }, { id: 'T', x: 22, y: 40 }, { id: 'A', x: 38, y: 40 }]
-      },
-      relief: {
-        category: 'valves', name: 'Relief Valve',
-        svg: `<rect x="10" y="10" width="25" height="30"/><line x1="22.5" y1="0" x2="22.5" y2="10"/><line x1="22.5" y1="40" x2="22.5" y2="50"/><path d="M 35,20 L 42,20 L 42,30 L 35,30"/><path d="M 22.5,15 L 22.5,35"/><polygon points="22.5,35 19,30 26,30" fill="#000"/><line x1="5" y1="25" x2="10" y2="25" stroke-dasharray="2,2"/>`,
-        ports: [{ id: 'P', x: 22.5, y: 0 }, { id: 'T', x: 22.5, y: 50 }]
-      },
-      check: {
-        category: 'valves', name: 'Check Valve',
-        svg: `<polygon points="10,15 30,5 30,25"/><circle cx="15" cy="15" r="5" fill="#000"/><line x1="0" y1="15" x2="10" y2="15"/><line x1="30" y1="15" x2="40" y2="15"/>`,
-        ports: [{ id: 'A', x: 0, y: 15 }, { id: 'B', x: 40, y: 15 }]
-      },
-      check_pilot: {
-        category: 'valves', name: 'Pilot Check',
-        svg: `<polygon points="10,15 30,5 30,25"/><circle cx="15" cy="15" r="5" fill="#000"/><line x1="0" y1="15" x2="10" y2="15"/><line x1="30" y1="15" x2="40" y2="15"/><line x1="20" y1="20" x2="20" y2="35" stroke-dasharray="2,2"/>`,
-        ports: [{ id: 'A', x: 0, y: 15 }, { id: 'B', x: 40, y: 15 }, { id: 'X', x: 20, y: 35 }]
-      },
-      throttle: {
-        category: 'valves', name: 'Throttle Valve',
-        svg: `<path d="M 5,10 Q 20,22 35,10"/><path d="M 5,20 Q 20,8 35,20"/><line x1="0" y1="15" x2="10" y2="15"/><line x1="30" y1="15" x2="40" y2="15"/>`,
-        ports: [{ id: 'A', x: 0, y: 15 }, { id: 'B', x: 40, y: 15 }]
-      },
-
-      // CONDITIONING & TANKS
-      tank: {
-        category: 'conditioning', name: 'Reservoir Tank',
-        svg: `<path d="M 5,5 L 5,25 L 35,25 L 35,5"/><line x1="20" y1="5" x2="20" y2="0"/>`,
-        ports: [{ id: 'T', x: 20, y: 0 }]
-      },
-      accumulator: {
-        category: 'conditioning', name: 'Accumulator',
-        svg: `<rect x="10" y="5" width="20" height="40" rx="10"/><path d="M 10,25 Q 20,30 30,25"/><line x1="20" y1="45" x2="20" y2="52"/>`,
-        ports: [{ id: 'P', x: 20, y: 52 }]
-      },
-      filter: {
-        category: 'conditioning', name: 'Fluid Filter',
-        svg: `<polygon points="20,5 35,20 20,35 5,20"/><line x1="20" y1="5" x2="20" y2="35" stroke-dasharray="2,2"/><line x1="20" y1="0" x2="20" y2="5"/><line x1="20" y1="35" x2="20" y2="40"/>`,
-        ports: [{ id: 'A', x: 20, y: 0 }, { id: 'B', x: 20, y: 40 }]
-      },
-      cooler: {
-        category: 'conditioning', name: 'Cooler',
-        svg: `<polygon points="20,5 35,20 20,35 5,20"/><line x1="20" y1="0" x2="20" y2="5"/><line x1="20" y1="35" x2="20" y2="40"/><polygon points="12,20 18,17 18,23" fill="#000"/><polygon points="28,20 22,17 22,23" fill="#000"/>`,
-        ports: [{ id: 'A', x: 20, y: 0 }, { id: 'B', x: 20, y: 40 }]
-      },
-
-      // SENSORS
-      gauge: {
-        category: 'sensors', name: 'Pressure Gauge',
-        svg: `<circle cx="20" cy="20" r="14"/><line x1="14" y1="26" x2="26" y2="14"/><line x1="20" y1="34" x2="20" y2="40"/>`,
-        ports: [{ id: 'P', x: 20, y: 40 }]
-      },
-      flowmeter: {
-        category: 'sensors', name: 'Flow Meter',
-        svg: `<circle cx="20" cy="20" r="14"/><polygon points="12,20 28,14 28,26"/><line x1="20" y1="34" x2="20" y2="40"/>`,
-        ports: [{ id: 'P', x: 20, y: 40 }]
-      },
-      switch_press: {
-        category: 'sensors', name: 'Pressure Switch',
-        svg: `<rect x="10" y="10" width="20" height="20"/><circle cx="20" cy="20" r="4"/><line x1="20" y1="30" x2="20" y2="40"/>`,
-        ports: [{ id: 'P', x: 20, y: 40 }]
-      }
-    };
-
-    function populateModal(category = 'all') {
-      const grid = document.getElementById('symbol-grid');
-      grid.innerHTML = '';
-      Object.keys(SYMBOLS).forEach(key => {
-        const item = SYMBOLS[key];
-        if (category === 'all' || item.category === category) {
-          const card = document.createElement('div');
-          card.className = 'card';
-          card.innerText = item.name;
-          card.onclick = () => addSymbol(key);
-          grid.appendChild(card);
-        }
-      });
-    }
-
-    function filterCategory(cat, tabEl) {
-      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-      tabEl.classList.add('active');
-      populateModal(cat);
-    }
-
-    function toggleModal(show) {
-      document.getElementById('modal').classList.toggle('open', show);
-      if (show) populateModal('all');
-    }
-
-    function toggleHoseMode() {
-      hoseMode = !hoseMode;
-      const btn = document.getElementById('hose-btn');
-      btn.classList.toggle('active', hoseMode);
-      btn.innerText = hoseMode ? '⚡ Tap 2 Ports' : '🔌 Hose';
-      if (!hoseMode && selectedPort) {
-        selectedPort.elem.classList.remove('selected');
-        selectedPort = null;
-      }
-    }
-
-    function addSymbol(type) {
-      const comp = {
-        id: 'c_' + Date.now(),
-        type,
-        x: Math.round((window.innerWidth / 2 - 20) / 20) * 20,
-        y: Math.round((window.innerHeight / 3) / 20) * 20
-      };
-      components.push(comp);
-      toggleModal(false);
-      render();
-      saveDiagram();
-    }
-
-    function deselectAll(e) {
-      if (e && e.target.tagName !== 'svg') return;
-      selectedComponentId = null;
-      selectedHoseId = null;
-      render();
-    }
-
-    function deleteSelected() {
-      if (selectedComponentId) {
-        components = components.filter(c => c.id !== selectedComponentId);
-        hoses = hoses.filter(h => h.from.compId !== selectedComponentId && h.to.compId !== selectedComponentId);
-        selectedComponentId = null;
-      } else if (selectedHoseId) {
-        hoses = hoses.filter(h => h.id !== selectedHoseId);
-        selectedHoseId = null;
-      }
-      render();
-      saveDiagram();
-    }
-
-    function onPointerDown(e, comp) {
-      if (hoseMode) return;
-      e.stopPropagation();
-      selectedComponentId = comp.id;
-      selectedHoseId = null;
-      activeDrag = comp;
-      dragOffset.x = e.clientX - comp.x;
-      dragOffset.y = e.clientY - comp.y;
-      render();
-    }
-
-    window.addEventListener('pointermove', (e) => {
-      if (!activeDrag || hoseMode) return;
-      activeDrag.x = Math.round((e.clientX - dragOffset.x) / 10) * 10;
-      activeDrag.y = Math.round((e.clientY - dragOffset.y) / 10) * 10;
-      renderHoses();
-      const el = document.getElementById(activeDrag.id);
-      if (el) el.setAttribute('transform', `translate(${activeDrag.x}, ${activeDrag.y})`);
-    });
-
-    window.addEventListener('pointerup', () => {
-      if (activeDrag) {
-        activeDrag = null;
-        saveDiagram();
-      }
-    });
-
-    function onPortClick(compId, portId, circle) {
-      if (!hoseMode) return;
-      if (!selectedPort) {
-        selectedPort = { compId, portId, elem: circle };
-        circle.classList.add('selected');
-      } else {
-        if (selectedPort.compId !== compId || selectedPort.portId !== portId) {
-          hoses.push({
-            id: 'h_' + Date.now(),
-            from: { compId: selectedPort.compId, portId: selectedPort.portId },
-            to: { compId, portId }
-          });
-          saveDiagram();
-        }
-        selectedPort.elem.classList.remove('selected');
-        selectedPort = null;
-        renderHoses();
-      }
-    }
-
-    function selectHose(e, hoseId) {
-      e.stopPropagation();
-      selectedHoseId = hoseId;
-      selectedComponentId = null;
-      render();
-    }
-
-    function getPortPos(compId, portId) {
-      const c = components.find(x => x.id === compId);
-      const p = SYMBOLS[c.type].ports.find(x => x.id === portId);
-      return { x: c.x + p.x, y: c.y + p.y };
-    }
-
-    function renderHoses() {
-      const layer = document.getElementById('hoses-layer');
-      layer.innerHTML = '';
-      hoses.forEach(h => {
-        const p1 = getPortPos(h.from.compId, h.from.portId);
-        const p2 = getPortPos(h.to.compId, h.to.portId);
-        const midY = (p1.y + p2.y) / 2;
-        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        path.setAttribute('d', `M ${p1.x} ${p1.y} L ${p1.x} ${midY} L ${p2.x} ${midY} L ${p2.x} ${p2.y}`);
-        path.setAttribute('class', 'hose' + (h.id === selectedHoseId ? ' selected' : ''));
-        path.addEventListener('click', (e) => selectHose(e, h.id));
-        layer.appendChild(path);
-      });
-    }
-
-    function render() {
-      const layer = document.getElementById('components-layer');
-      layer.innerHTML = '';
-      components.forEach(comp => {
-        const tmpl = SYMBOLS[comp.type];
-        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-        g.setAttribute('id', comp.id);
-        g.setAttribute('class', 'component' + (comp.id === selectedComponentId ? ' selected' : ''));
-        g.setAttribute('transform', `translate(${comp.x}, ${comp.y})`);
-        g.innerHTML = tmpl.svg + `<text x="0" y="-6">${tmpl.name}</text>`;
-
-        tmpl.ports.forEach(p => {
-          const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-          circle.setAttribute('cx', p.x);
-          circle.setAttribute('cy', p.y);
-          circle.setAttribute('r', 5);
-          circle.setAttribute('class', 'port');
-          circle.addEventListener('click', (e) => { e.stopPropagation(); onPortClick(comp.id, p.id, circle); });
-          g.appendChild(circle);
-        });
-
-        g.addEventListener('pointerdown', (e) => onPointerDown(e, comp));
-        layer.appendChild(g);
-      });
-      renderHoses();
-    }
-
-    function saveDiagram() {
-      const data = {
-        components,
-        hoses,
-        title: document.getElementById('tb-title').innerText
-      };
-      localStorage.setItem('iso_hydraulic_canvas', JSON.stringify(data));
-    }
-
-    function loadDiagram() {
-      const raw = localStorage.getItem('iso_hydraulic_canvas');
-      if (raw) {
-        const data = JSON.parse(raw);
-        components = data.components || [];
-        hoses = data.hoses || [];
-        if (data.title) document.getElementById('tb-title').innerText = data.title;
-        render();
-      }
-    }
-
-    document.getElementById('tb-date').innerText = new Date().toISOString().split('T')[0];
-    populateModal();
-    loadDiagram();
-  </script>
-</body>
-</html>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Hydraulic CAD</title>
-  <style>
-    * { touch-action: none; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f2f2f7; overflow: hidden; }
-
-    /* Touch Top Toolbar */
-    #toolbar {
-      position: fixed; top: 10px; left: 10px; right: 10px; height: 50px;
-      background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px);
-      border-radius: 12px; display: flex; align-items: center; justify-content: space-between;
-      padding: 0 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); z-index: 100;
+      padding: 0 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); z-index: 100;
     }
     .btn-group { display: flex; gap: 4px; }
     button {
       background: #007aff; color: white; border: none; padding: 8px 10px;
-      border-radius: 8px; font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 4px;
+      border-radius: 8px; font-weight: 600; font-size: 12px; display: flex; align-items: center; gap: 3px;
     }
     button.active { background: #34c759; }
     button.secondary { background: #8e8e93; }
     button.danger { background: #ff3b30; }
-    button:disabled { opacity: 0.4; }
 
     /* Canvas Grid */
     svg#canvas {
@@ -500,7 +40,8 @@
       stroke: #ff9500 !important; stroke-width: 3 !important;
     }
     .component text { font-family: monospace; font-size: 10px; fill: #000000; stroke: none; font-weight: bold; pointer-events: none; }
-    
+    .component text.tech-spec { font-size: 8px; fill: #007aff; }
+
     /* Connection Ports */
     .port { fill: #007aff; stroke: #ffffff; stroke-width: 2; cursor: pointer; }
     .port.selected { fill: #ff9500; r: 7; }
@@ -519,16 +60,23 @@
     #title-block div { border: 1px solid #000; padding: 3px; }
     #title-block label { font-size: 7px; color: #555; display: block; text-transform: uppercase; }
 
-    /* Modal Sheet for Symbols */
+    /* Modal Sheets */
     .modal {
       position: fixed; bottom: -100%; left: 0; right: 0; background: #fff;
       border-top-left-radius: 20px; border-top-right-radius: 20px;
-      padding: 16px; max-height: 75vh; overflow-y: auto;
+      padding: 16px; max-height: 80vh; overflow-y: auto;
       box-shadow: 0 -5px 25px rgba(0,0,0,0.2); transition: bottom 0.3s ease; z-index: 200;
     }
     .modal.open { bottom: 0; }
-    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-weight: bold; }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-weight: bold; }
     
+    /* Form Inspector Styling */
+    .form-group { margin-bottom: 12px; }
+    .form-group label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 4px; color: #3c3c43; }
+    .form-group input, .form-group select {
+      width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #c7c7cc; font-size: 14px; background: #f2f2f7;
+    }
+
     /* Category Filter Tabs */
     .tabs { display: flex; gap: 6px; overflow-x: auto; margin-bottom: 12px; padding-bottom: 4px; }
     .tab { background: #e5e5ea; color: #000; padding: 6px 12px; border-radius: 14px; font-size: 11px; font-weight: 600; white-space: nowrap; }
@@ -550,10 +98,11 @@
   <!-- Top Action Toolbar -->
   <div id="toolbar">
     <div class="btn-group">
-      <button onclick="toggleModal(true)">＋ Symbol</button>
+      <button onclick="toggleModal('modal', true)">＋ Symbol</button>
       <button id="hose-btn" class="secondary" onclick="toggleHoseMode()">🔌 Hose</button>
       <button class="secondary" onclick="rotateSelected()" title="Rotate 90°">🔄</button>
       <button class="secondary" onclick="flipSelected()" title="Flip Horizontal">↔️</button>
+      <button class="secondary" onclick="openInspector()" title="Component Properties">⚙️ Props</button>
       <button class="danger" onclick="deleteSelected()">🗑️</button>
     </div>
     <div class="btn-group">
@@ -588,7 +137,7 @@
   <div id="modal" class="modal">
     <div class="modal-header">
       <span>ISO 1219 Symbol Library</span>
-      <button class="secondary" onclick="toggleModal(false)">Close</button>
+      <button class="secondary" onclick="toggleModal('modal', false)">Close</button>
     </div>
 
     <div class="tabs">
@@ -601,6 +150,37 @@
     </div>
 
     <div class="grid" id="symbol-grid"></div>
+  </div>
+
+  <!-- Component Inspector Modal -->
+  <div id="inspector-modal" class="modal">
+    <div class="modal-header">
+      <span id="inspector-title">Component Inspector</span>
+      <button class="secondary" onclick="toggleModal('inspector-modal', false)">Close</button>
+    </div>
+    <form onsubmit="saveInspector(event)">
+      <div class="form-group">
+        <label>Component Tag / ID</label>
+        <input type="text" id="prop-tag" placeholder="e.g. P1, V1, CYL1">
+      </div>
+      <div class="form-group">
+        <label>Pressure Rating (bar)</label>
+        <input type="number" id="prop-pressure" placeholder="e.g. 210">
+      </div>
+      <div class="form-group">
+        <label>Nominal Flow Rate (L/min)</label>
+        <input type="number" id="prop-flow" placeholder="e.g. 40">
+      </div>
+      <div class="form-group" id="group-valve-pos" style="display: none;">
+        <label>Initial Valve Position / Spool State</label>
+        <select id="prop-valve-pos">
+          <option value="Neutral (Center)">Neutral (Center)</option>
+          <option value="Left Position (P->A)">Left Position (P->A)</option>
+          <option value="Right Position (P->B)">Right Position (P->B)</option>
+        </select>
+      </div>
+      <button type="submit" style="width: 100%; justify-content: center; padding: 12px;">Apply Changes</button>
+    </form>
   </div>
 
   <script>
@@ -617,105 +197,105 @@
     const SYMBOLS = {
       // PUMPS & MOTORS
       pump: {
-        category: 'pumps', name: 'Fixed Pump',
+        category: 'pumps', name: 'Fixed Pump', tagPrefix: 'P',
         svg: `<circle cx="25" cy="25" r="18"/><polygon points="25,7 18,20 32,20" fill="#000"/><line x1="25" y1="7" x2="25" y2="0"/><line x1="25" y1="43" x2="25" y2="50"/>`,
         ports: [{ id: 'P', x: 25, y: 0 }, { id: 'T', x: 25, y: 50 }]
       },
       pump_var: {
-        category: 'pumps', name: 'Variable Pump',
+        category: 'pumps', name: 'Variable Pump', tagPrefix: 'PV',
         svg: `<circle cx="25" cy="25" r="18"/><polygon points="25,7 18,20 32,20" fill="#000"/><line x1="25" y1="7" x2="25" y2="0"/><line x1="25" y1="43" x2="25" y2="50"/><line x1="8" y1="42" x2="42" y2="8"/><polygon points="42,8 35,10 39,15" fill="#000"/>`,
         ports: [{ id: 'P', x: 25, y: 0 }, { id: 'T', x: 25, y: 50 }]
       },
       motor: {
-        category: 'pumps', name: 'Hydraulic Motor',
+        category: 'pumps', name: 'Hydraulic Motor', tagPrefix: 'M',
         svg: `<circle cx="25" cy="25" r="18"/><polygon points="25,43 18,30 32,30" fill="#000"/><line x1="25" y1="7" x2="25" y2="0"/><line x1="25" y1="43" x2="25" y2="50"/>`,
         ports: [{ id: 'A', x: 25, y: 0 }, { id: 'B', x: 25, y: 50 }]
       },
 
       // ACTUATORS
       cylinder_da: {
-        category: 'actuators', name: 'Double Cylinder',
+        category: 'actuators', name: 'Double Cylinder', tagPrefix: 'CYL',
         svg: `<rect x="5" y="5" width="60" height="25"/><line x1="30" y1="5" x2="30" y2="30"/><line x1="30" y1="17.5" x2="85" y2="17.5" stroke-width="4"/><line x1="15" y1="30" x2="15" y2="40"/><line x1="50" y1="30" x2="50" y2="40"/>`,
         ports: [{ id: 'A', x: 15, y: 40 }, { id: 'B', x: 50, y: 40 }]
       },
       cylinder_sa: {
-        category: 'actuators', name: 'Spring Cylinder',
+        category: 'actuators', name: 'Spring Cylinder', tagPrefix: 'CYL',
         svg: `<rect x="5" y="5" width="60" height="25"/><line x1="25" y1="5" x2="25" y2="30"/><line x1="25" y1="17.5" x2="80" y2="17.5" stroke-width="4"/><path d="M 25,10 L 32,20 L 39,10 L 46,20 L 53,10 L 60,20 L 65,17.5"/><line x1="15" y1="30" x2="15" y2="40"/>`,
         ports: [{ id: 'A', x: 15, y: 40 }]
       },
 
       // VALVES
       valve43: {
-        category: 'valves', name: '4/3 DCV Valve',
+        category: 'valves', name: '4/3 DCV Valve', tagPrefix: 'V', isValve: true,
         svg: `<rect x="5" y="5" width="25" height="25"/><rect x="30" y="5" width="25" height="25"/><rect x="55" y="5" width="25" height="25"/><line x1="15" y1="30" x2="15" y2="40"/><line x1="25" y1="30" x2="25" y2="40"/><line x1="60" y1="30" x2="60" y2="40"/><line x1="70" y1="30" x2="70" y2="40"/><path d="M 12,25 L 12,10 L 22,10"/><polygon points="22,10 18,7 18,13" fill="#000"/><path d="M 62,10 L 62,25 L 68,25"/><polygon points="68,25 64,22 64,28" fill="#000"/>`,
         ports: [{ id: 'P', x: 15, y: 40 }, { id: 'T', x: 25, y: 40 }, { id: 'A', x: 60, y: 40 }, { id: 'B', x: 70, y: 40 }]
       },
       valve42: {
-        category: 'valves', name: '4/2 DCV Valve',
+        category: 'valves', name: '4/2 DCV Valve', tagPrefix: 'V', isValve: true,
         svg: `<rect x="5" y="5" width="25" height="25"/><rect x="30" y="5" width="25" height="25"/><line x1="12" y1="30" x2="12" y2="40"/><line x1="22" y1="30" x2="22" y2="40"/><line x1="38" y1="30" x2="38" y2="40"/><line x1="48" y1="30" x2="48" y2="40"/><line x1="12" y1="25" x2="12" y2="10"/><polygon points="12,10 9,14 15,14" fill="#000"/><line x1="22" y1="10" x2="22" y2="25"/><polygon points="22,25 19,21 25,21" fill="#000"/>`,
         ports: [{ id: 'P', x: 12, y: 40 }, { id: 'T', x: 22, y: 40 }, { id: 'A', x: 38, y: 40 }, { id: 'B', x: 48, y: 40 }]
       },
       valve32: {
-        category: 'valves', name: '3/2 DCV Valve',
+        category: 'valves', name: '3/2 DCV Valve', tagPrefix: 'V', isValve: true,
         svg: `<rect x="5" y="5" width="25" height="25"/><rect x="30" y="5" width="25" height="25"/><line x1="12" y1="30" x2="12" y2="40"/><line x1="22" y1="30" x2="22" y2="40"/><line x1="38" y1="30" x2="38" y2="40"/><line x1="12" y1="25" x2="12" y2="10"/><polygon points="12,10 9,14 15,14" fill="#000"/>`,
         ports: [{ id: 'P', x: 12, y: 40 }, { id: 'T', x: 22, y: 40 }, { id: 'A', x: 38, y: 40 }]
       },
       relief: {
-        category: 'valves', name: 'Relief Valve',
+        category: 'valves', name: 'Relief Valve', tagPrefix: 'RV',
         svg: `<rect x="10" y="10" width="25" height="30"/><line x1="22.5" y1="0" x2="22.5" y2="10"/><line x1="22.5" y1="40" x2="22.5" y2="50"/><path d="M 35,20 L 42,20 L 42,30 L 35,30"/><path d="M 22.5,15 L 22.5,35"/><polygon points="22.5,35 19,30 26,30" fill="#000"/><line x1="5" y1="25" x2="10" y2="25" stroke-dasharray="2,2"/>`,
         ports: [{ id: 'P', x: 22.5, y: 0 }, { id: 'T', x: 22.5, y: 50 }]
       },
       check: {
-        category: 'valves', name: 'Check Valve',
+        category: 'valves', name: 'Check Valve', tagPrefix: 'CV',
         svg: `<polygon points="10,15 30,5 30,25"/><circle cx="15" cy="15" r="5" fill="#000"/><line x1="0" y1="15" x2="10" y2="15"/><line x1="30" y1="15" x2="40" y2="15"/>`,
         ports: [{ id: 'A', x: 0, y: 15 }, { id: 'B', x: 40, y: 15 }]
       },
       check_pilot: {
-        category: 'valves', name: 'Pilot Check',
+        category: 'valves', name: 'Pilot Check', tagPrefix: 'PCV',
         svg: `<polygon points="10,15 30,5 30,25"/><circle cx="15" cy="15" r="5" fill="#000"/><line x1="0" y1="15" x2="10" y2="15"/><line x1="30" y1="15" x2="40" y2="15"/><line x1="20" y1="20" x2="20" y2="35" stroke-dasharray="2,2"/>`,
         ports: [{ id: 'A', x: 0, y: 15 }, { id: 'B', x: 40, y: 15 }, { id: 'X', x: 20, y: 35 }]
       },
       throttle: {
-        category: 'valves', name: 'Throttle Valve',
+        category: 'valves', name: 'Throttle Valve', tagPrefix: 'TV',
         svg: `<path d="M 5,10 Q 20,22 35,10"/><path d="M 5,20 Q 20,8 35,20"/><line x1="0" y1="15" x2="10" y2="15"/><line x1="30" y1="15" x2="40" y2="15"/>`,
         ports: [{ id: 'A', x: 0, y: 15 }, { id: 'B', x: 40, y: 15 }]
       },
 
       // CONDITIONING & TANKS
       tank: {
-        category: 'conditioning', name: 'Reservoir Tank',
+        category: 'conditioning', name: 'Reservoir Tank', tagPrefix: 'T',
         svg: `<path d="M 5,5 L 5,25 L 35,25 L 35,5"/><line x1="20" y1="5" x2="20" y2="0"/>`,
         ports: [{ id: 'T', x: 20, y: 0 }]
       },
       accumulator: {
-        category: 'conditioning', name: 'Accumulator',
+        category: 'conditioning', name: 'Accumulator', tagPrefix: 'ACC',
         svg: `<rect x="10" y="5" width="20" height="40" rx="10"/><path d="M 10,25 Q 20,30 30,25"/><line x1="20" y1="45" x2="20" y2="52"/>`,
         ports: [{ id: 'P', x: 20, y: 52 }]
       },
       filter: {
-        category: 'conditioning', name: 'Fluid Filter',
+        category: 'conditioning', name: 'Fluid Filter', tagPrefix: 'F',
         svg: `<polygon points="20,5 35,20 20,35 5,20"/><line x1="20" y1="5" x2="20" y2="35" stroke-dasharray="2,2"/><line x1="20" y1="0" x2="20" y2="5"/><line x1="20" y1="35" x2="20" y2="40"/>`,
         ports: [{ id: 'A', x: 20, y: 0 }, { id: 'B', x: 20, y: 40 }]
       },
       cooler: {
-        category: 'conditioning', name: 'Cooler',
+        category: 'conditioning', name: 'Cooler', tagPrefix: 'HEX',
         svg: `<polygon points="20,5 35,20 20,35 5,20"/><line x1="20" y1="0" x2="20" y2="5"/><line x1="20" y1="35" x2="20" y2="40"/><polygon points="12,20 18,17 18,23" fill="#000"/><polygon points="28,20 22,17 22,23" fill="#000"/>`,
         ports: [{ id: 'A', x: 20, y: 0 }, { id: 'B', x: 20, y: 40 }]
       },
 
       // SENSORS
       gauge: {
-        category: 'sensors', name: 'Pressure Gauge',
+        category: 'sensors', name: 'Pressure Gauge', tagPrefix: 'M',
         svg: `<circle cx="20" cy="20" r="14"/><line x1="14" y1="26" x2="26" y2="14"/><line x1="20" y1="34" x2="20" y2="40"/>`,
         ports: [{ id: 'P', x: 20, y: 40 }]
       },
       flowmeter: {
-        category: 'sensors', name: 'Flow Meter',
+        category: 'sensors', name: 'Flow Meter', tagPrefix: 'FM',
         svg: `<circle cx="20" cy="20" r="14"/><polygon points="12,20 28,14 28,26"/><line x1="20" y1="34" x2="20" y2="40"/>`,
         ports: [{ id: 'P', x: 20, y: 40 }]
       },
       switch_press: {
-        category: 'sensors', name: 'Pressure Switch',
+        category: 'sensors', name: 'Pressure Switch', tagPrefix: 'PS',
         svg: `<rect x="10" y="10" width="20" height="20"/><circle cx="20" cy="20" r="4"/><line x1="20" y1="30" x2="20" y2="40"/>`,
         ports: [{ id: 'P', x: 20, y: 40 }]
       }
@@ -742,9 +322,9 @@
       populateModal(cat);
     }
 
-    function toggleModal(show) {
-      document.getElementById('modal').classList.toggle('open', show);
-      if (show) populateModal('all');
+    function toggleModal(modalId, show) {
+      document.getElementById(modalId).classList.toggle('open', show);
+      if (show && modalId === 'modal') populateModal('all');
     }
 
     function toggleHoseMode() {
@@ -759,19 +339,67 @@
     }
 
     function addSymbol(type) {
+      const tmpl = SYMBOLS[type];
+      const count = components.filter(c => c.type === type).length + 1;
       const comp = {
         id: 'c_' + Date.now(),
         type,
+        tag: `${tmpl.tagPrefix || 'COMP'}${count}`,
         x: Math.round((window.innerWidth / 2 - 20) / 20) * 20,
         y: Math.round((window.innerHeight / 3) / 20) * 20,
         rotation: 0,
-        flipH: false
+        flipH: false,
+        pressure: '',
+        flow: '',
+        valvePos: tmpl.isValve ? 'Neutral (Center)' : ''
       };
       components.push(comp);
       selectedComponentId = comp.id;
-      toggleModal(false);
+      toggleModal('modal', false);
       render();
       saveDiagram();
+    }
+
+    function openInspector() {
+      if (!selectedComponentId) {
+        alert('Please select a component first.');
+        return;
+      }
+      const comp = components.find(c => c.id === selectedComponentId);
+      if (!comp) return;
+
+      const tmpl = SYMBOLS[comp.type];
+      document.getElementById('inspector-title').innerText = `${tmpl.name} Inspector`;
+      document.getElementById('prop-tag').value = comp.tag || '';
+      document.getElementById('prop-pressure').value = comp.pressure || '';
+      document.getElementById('prop-flow').value = comp.flow || '';
+
+      const valveGroup = document.getElementById('group-valve-pos');
+      if (tmpl.isValve) {
+        valveGroup.style.display = 'block';
+        document.getElementById('prop-valve-pos').value = comp.valvePos || 'Neutral (Center)';
+      } else {
+        valveGroup.style.display = 'none';
+      }
+
+      toggleModal('inspector-modal', true);
+    }
+
+    function saveInspector(e) {
+      e.preventDefault();
+      if (!selectedComponentId) return;
+      const comp = components.find(c => c.id === selectedComponentId);
+      if (comp) {
+        comp.tag = document.getElementById('prop-tag').value.trim();
+        comp.pressure = document.getElementById('prop-pressure').value;
+        comp.flow = document.getElementById('prop-flow').value;
+        if (SYMBOLS[comp.type].isValve) {
+          comp.valvePos = document.getElementById('prop-valve-pos').value;
+        }
+        render();
+        saveDiagram();
+      }
+      toggleModal('inspector-modal', false);
     }
 
     function deselectAll(e) {
@@ -871,7 +499,7 @@
     function getPortPos(compId, portId) {
       const c = components.find(x => x.id === compId);
       const p = SYMBOLS[c.type].ports.find(x => x.id === portId);
-      const cx = 25, cy = 25; // symbol rotation center
+      const cx = 25, cy = 25; // rotation center
       
       let dx = p.x - cx;
       let dy = p.y - cy;
@@ -910,7 +538,7 @@
         g.setAttribute('class', 'component' + (comp.id === selectedComponentId ? ' selected' : ''));
         g.setAttribute('transform', `translate(${comp.x}, ${comp.y})`);
 
-        // Inner transformed SVG group
+        // Transformed SVG Symbol
         const rot = comp.rotation || 0;
         const scaleX = comp.flipH ? -1 : 1;
         const innerTransform = `translate(25, 25) rotate(${rot}) scale(${scaleX}, 1) translate(-25, -25)`;
@@ -931,12 +559,25 @@
 
         g.appendChild(symbolGroup);
 
-        // Keep Text Upright Outside Transformation
-        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        text.setAttribute('x', '0');
-        text.setAttribute('y', '-6');
-        text.textContent = tmpl.name;
-        g.appendChild(text);
+        // Name & Tag Text
+        const titleText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        titleText.setAttribute('x', '0');
+        titleText.setAttribute('y', '-14');
+        titleText.textContent = `${comp.tag ? comp.tag + ' - ' : ''}${tmpl.name}`;
+        g.appendChild(titleText);
+
+        // Technical Spec Badge
+        const specs = [];
+        if (comp.pressure) specs.push(`${comp.pressure} bar`);
+        if (comp.flow) specs.push(`${comp.flow} L/min`);
+        if (specs.length > 0) {
+          const specText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+          specText.setAttribute('x', '0');
+          specText.setAttribute('y', '-4');
+          specText.setAttribute('class', 'tech-spec');
+          specText.textContent = specs.join(' | ');
+          g.appendChild(specText);
+        }
 
         g.addEventListener('pointerdown', (e) => onPointerDown(e, comp));
         layer.appendChild(g);
@@ -970,4 +611,3 @@
   </script>
 </body>
 </html>
-
