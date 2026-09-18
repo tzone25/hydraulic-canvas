@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Hydraulic Schematics</title>
+  <style>
+    * { touch-action: none; box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #f2f2f7; overflow: hidden; }
+    #toolbar {
+      position: absolute; top: 10px; left: 10px; right: 10px; height: 50px;
+      background: white; border-radius: 12px; display: flex; align-items: center;
+      padding: 0 10px; gap: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 10;
+    }
+    button {
+      background: #007aff; color: white; border: none; padding: 8px 14px;
+      border-radius: 8px; font-weight: 600; font-size: 14px;
+    }
+    svg#canvas { width: 100vw; height: 100vh; background-image: radial-gradient(#ccc 1px, transparent 0); background-size: 20px 20px; }
+    .component { cursor: move; }
+    .component rect { fill: #ffffff; stroke: #000000; stroke-width: 2; }
+    .component circle { fill: #007aff; }
+  </style>
+</head>
+<body>
+
+  <div id="toolbar">
+    <button onclick="addPump()">+ Hydraulic Pump</button>
+    <button onclick="addValve()">+ Valve</button>
+  </div>
+
+  <svg id="canvas"></svg>
+
+  <script>
+    const canvas = document.getElementById('canvas');
+    let activeElement = null;
+    let offset = { x: 0, y: 0 };
+
+    function createDraggableGroup(x, y) {
+      const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      g.setAttribute('class', 'component');
+      g.setAttribute('transform', `translate(${x}, ${y})`);
+
+      g.addEventListener('touchstart', onTouchStart);
+      g.addEventListener('touchmove', onTouchMove);
+      g.addEventListener('touchend', onTouchEnd);
+      return g;
+    }
+
+    function addPump() {
+      const g = createDraggableGroup(100, 200);
+      g.innerHTML = `
+        <rect x="0" y="0" width="60" height="60" rx="30"/>
+        <polygon points="30,10 20,30 40,30" fill="#000" />
+        <line x1="30" y1="0" x2="30" y2="-10" stroke="#000" stroke-width="2"/>
+        <line x1="30" y1="60" x2="30" y2="70" stroke="#000" stroke-width="2"/>
+        <text x="30" y="85" font-size="10" text-anchor="middle">Pump</text>
+      `;
+      canvas.appendChild(g);
+    }
+
+    function addValve() {
+      const g = createDraggableGroup(200, 200);
+      g.innerHTML = `
+        <rect x="0" y="0" width="80" height="50" rx="4"/>
+        <line x1="40" y1="0" x2="40" y2="50" stroke="#000" stroke-width="2"/>
+        <text x="40" y="65" font-size="10" text-anchor="middle">4/2 Valve</text>
+      `;
+      canvas.appendChild(g);
+    }
+
+    function onTouchStart(e) {
+      activeElement = e.currentTarget;
+      const touch = e.touches[0];
+      const transform = activeElement.getAttribute('transform');
+      const match = /translate\(([^,]+),\s*([^)]+)\)/.exec(transform);
+      const currentX = parseFloat(match[1]);
+      const currentY = parseFloat(match[2]);
+
+      offset.x = touch.clientX - currentX;
+      offset.y = touch.clientY - currentY;
+    }
+
+    function onTouchMove(e) {
+      if (!activeElement) return;
+      const touch = e.touches[0];
+      // Snap to 10px grid
+      const newX = Math.round((touch.clientX - offset.x) / 10) * 10;
+      const newY = Math.round((touch.clientY - offset.y) / 10) * 10;
+      activeElement.setAttribute('transform', `translate(${newX}, ${newY})`);
+    }
+
+    function onTouchEnd() {
+      activeElement = null;
+    }
+  </script>
+</body>
+</html>
