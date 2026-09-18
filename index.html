@@ -1,4 +1,4 @@
-l<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -33,13 +33,13 @@ l<!DOCTYPE html>
 
     /* Symbol & Connection Styling */
     .component { cursor: move; }
-    .component path, .component rect, .component circle, .component stroke {
+    .component path, .component rect, .component circle, .component line {
       stroke: #000000; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round;
     }
-    .component.selected path, .component.selected rect, .component.selected circle {
+    .component.selected path, .component.selected rect, .component.selected circle, .component.selected line {
       stroke: #ff9500 !important; stroke-width: 3 !important;
     }
-    .component text { font-family: monospace; font-size: 11px; fill: #000000; stroke: none; font-weight: bold; }
+    .component text { font-family: monospace; font-size: 10px; fill: #000000; stroke: none; font-weight: bold; }
     
     /* Connection Ports */
     .port { fill: #007aff; stroke: #ffffff; stroke-width: 2; cursor: pointer; }
@@ -63,15 +63,21 @@ l<!DOCTYPE html>
     .modal {
       position: fixed; bottom: -100%; left: 0; right: 0; background: #fff;
       border-top-left-radius: 20px; border-top-right-radius: 20px;
-      padding: 20px; max-height: 60vh; overflow-y: auto;
+      padding: 16px; max-height: 75vh; overflow-y: auto;
       box-shadow: 0 -5px 25px rgba(0,0,0,0.2); transition: bottom 0.3s ease; z-index: 200;
     }
     .modal.open { bottom: 0; }
-    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-weight: bold; }
-    .grid { display: grid; grid-template-columns: repeat( auto-fit, minmax(100px, 1fr) ); gap: 10px; }
-    .card { border: 1px solid #e5e5ea; border-radius: 10px; padding: 12px; text-align: center; font-size: 12px; font-weight: 500; }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-weight: bold; }
+    
+    /* Category Filter Tabs */
+    .tabs { display: flex; gap: 6px; overflow-x: auto; margin-bottom: 12px; padding-bottom: 4px; }
+    .tab { background: #e5e5ea; color: #000; padding: 6px 12px; border-radius: 14px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+    .tab.active { background: #007aff; color: #fff; }
 
-    /* PDF Print Styles */
+    .grid { display: grid; grid-template-columns: repeat( auto-fit, minmax(110px, 1fr) ); gap: 8px; }
+    .card { border: 1px solid #e5e5ea; border-radius: 10px; padding: 10px; text-align: center; font-size: 11px; font-weight: 500; background: #fafafa; }
+    .card:active { background: #e5e5ea; }
+
     @media print {
       #toolbar, .modal { display: none !important; }
       svg#canvas { background-image: none; }
@@ -94,11 +100,11 @@ l<!DOCTYPE html>
     </div>
   </div>
 
-  <!-- ISO Engineering Title Block -->
+  <!-- ISO Title Block -->
   <div id="title-block">
     <div style="grid-row: span 2;">
       <label>Project Title</label>
-      <strong id="tb-title" contenteditable="true" onblur="saveDiagram()">Hydraulic Circuit</strong>
+      <strong id="tb-title" contenteditable="true" onblur="saveDiagram()">ISO 1219 Hydraulic Schematic</strong>
     </div>
     <div>
       <label>Date</label>
@@ -106,7 +112,7 @@ l<!DOCTYPE html>
     </div>
     <div>
       <label>Standard</label>
-      <span>ISO 1219</span>
+      <span>ISO 1219-1</span>
     </div>
   </div>
 
@@ -122,18 +128,20 @@ l<!DOCTYPE html>
       <span>ISO 1219 Symbol Library</span>
       <button class="secondary" onclick="toggleModal(false)">Close</button>
     </div>
-    <div class="grid">
-      <div class="card" onclick="addSymbol('pump')">⚙️ Fixed Pump</div>
-      <div class="card" onclick="addSymbol('tank')">🛢️ Reservoir / Tank</div>
-      <div class="card" onclick="addSymbol('cylinder')">↕️ Cylinder (Double)</div>
-      <div class="card" onclick="addSymbol('valve43')">🔀 4/3 DCV Valve</div>
-      <div class="card" onclick="addSymbol('relief')">⚠️ Relief Valve</div>
-      <div class="card" onclick="addSymbol('gauge')">⏲️ Pressure Gauge</div>
+
+    <div class="tabs">
+      <div class="tab active" onclick="filterCategory('all', this)">All</div>
+      <div class="tab" onclick="filterCategory('pumps', this)">Pumps & Motors</div>
+      <div class="tab" onclick="filterCategory('actuators', this)">Actuators</div>
+      <div class="tab" onclick="filterCategory('valves', this)">Valves</div>
+      <div class="tab" onclick="filterCategory('conditioning', this)">Conditioning & Tanks</div>
+      <div class="tab" onclick="filterCategory('sensors', this)">Sensors</div>
     </div>
+
+    <div class="grid" id="symbol-grid"></div>
   </div>
 
   <script>
-    // State
     let components = [];
     let hoses = [];
     let hoseMode = false;
@@ -143,42 +151,138 @@ l<!DOCTYPE html>
     let activeDrag = null;
     let dragOffset = { x: 0, y: 0 };
 
-    // ISO Symbol Definitions
+    // Full ISO 1219 Symbol Standard Library
     const SYMBOLS = {
+      // PUMPS & MOTORS
       pump: {
-        name: 'Pump',
-        svg: `<circle cx="25" cy="25" r="18" fill="#fff"/><polygon points="25,10 18,22 32,22" fill="#000"/><line x1="25" y1="7" x2="25" y2="0"/><line x1="25" y1="43" x2="25" y2="50"/>`,
+        category: 'pumps', name: 'Fixed Pump',
+        svg: `<circle cx="25" cy="25" r="18"/><polygon points="25,7 18,20 32,20" fill="#000"/><line x1="25" y1="7" x2="25" y2="0"/><line x1="25" y1="43" x2="25" y2="50"/>`,
         ports: [{ id: 'P', x: 25, y: 0 }, { id: 'T', x: 25, y: 50 }]
       },
-      tank: {
-        name: 'Tank',
-        svg: `<path d="M 5,5 L 5,25 L 35,25 L 35,5" fill="none"/><line x1="20" y1="5" x2="20" y2="0"/>`,
-        ports: [{ id: 'T', x: 20, y: 0 }]
+      pump_var: {
+        category: 'pumps', name: 'Variable Pump',
+        svg: `<circle cx="25" cy="25" r="18"/><polygon points="25,7 18,20 32,20" fill="#000"/><line x1="25" y1="7" x2="25" y2="0"/><line x1="25" y1="43" x2="25" y2="50"/><line x1="8" y1="42" x2="42" y2="8"/><polygon points="42,8 35,10 39,15" fill="#000"/>`,
+        ports: [{ id: 'P', x: 25, y: 0 }, { id: 'T', x: 25, y: 50 }]
       },
-      cylinder: {
-        name: 'Cylinder',
-        svg: `<rect x="5" y="5" width="60" height="25" fill="#fff"/><line x1="30" y1="5" x2="30" y2="30"/><line x1="30" y1="17.5" x2="85" y2="17.5" stroke-width="4"/><line x1="15" y1="30" x2="15" y2="40"/><line x1="50" y1="30" x2="50" y2="40"/>`,
+      motor: {
+        category: 'pumps', name: 'Hydraulic Motor',
+        svg: `<circle cx="25" cy="25" r="18"/><polygon points="25,43 18,30 32,30" fill="#000"/><line x1="25" y1="7" x2="25" y2="0"/><line x1="25" y1="43" x2="25" y2="50"/>`,
+        ports: [{ id: 'A', x: 25, y: 0 }, { id: 'B', x: 25, y: 50 }]
+      },
+
+      // ACTUATORS
+      cylinder_da: {
+        category: 'actuators', name: 'Double Cylinder',
+        svg: `<rect x="5" y="5" width="60" height="25"/><line x1="30" y1="5" x2="30" y2="30"/><line x1="30" y1="17.5" x2="85" y2="17.5" stroke-width="4"/><line x1="15" y1="30" x2="15" y2="40"/><line x1="50" y1="30" x2="50" y2="40"/>`,
         ports: [{ id: 'A', x: 15, y: 40 }, { id: 'B', x: 50, y: 40 }]
       },
+      cylinder_sa: {
+        category: 'actuators', name: 'Spring Cylinder',
+        svg: `<rect x="5" y="5" width="60" height="25"/><line x1="25" y1="5" x2="25" y2="30"/><line x1="25" y1="17.5" x2="80" y2="17.5" stroke-width="4"/><path d="M 25,10 L 32,20 L 39,10 L 46,20 L 53,10 L 60,20 L 65,17.5"/><line x1="15" y1="30" x2="15" y2="40"/>`,
+        ports: [{ id: 'A', x: 15, y: 40 }]
+      },
+
+      // VALVES
       valve43: {
-        name: '4/3 Valve',
-        svg: `<rect x="5" y="5" width="25" height="25" fill="#fff"/><rect x="30" y="5" width="25" height="25" fill="#fff"/><rect x="55" y="5" width="25" height="25" fill="#fff"/><line x1="15" y1="30" x2="15" y2="40"/><line x1="25" y1="30" x2="25" y2="40"/><line x1="60" y1="30" x2="60" y2="40"/><line x1="70" y1="30" x2="70" y2="40"/>`,
+        category: 'valves', name: '4/3 DCV Valve',
+        svg: `<rect x="5" y="5" width="25" height="25"/><rect x="30" y="5" width="25" height="25"/><rect x="55" y="5" width="25" height="25"/><line x1="15" y1="30" x2="15" y2="40"/><line x1="25" y1="30" x2="25" y2="40"/><line x1="60" y1="30" x2="60" y2="40"/><line x1="70" y1="30" x2="70" y2="40"/><path d="M 12,25 L 12,10 L 22,10"/><polygon points="22,10 18,7 18,13" fill="#000"/><path d="M 62,10 L 62,25 L 68,25"/><polygon points="68,25 64,22 64,28" fill="#000"/>`,
         ports: [{ id: 'P', x: 15, y: 40 }, { id: 'T', x: 25, y: 40 }, { id: 'A', x: 60, y: 40 }, { id: 'B', x: 70, y: 40 }]
       },
-      relief: {
-        name: 'Relief Valve',
-        svg: `<rect x="10" y="5" width="25" height="35" fill="#fff"/><line x1="22.5" y1="5" x2="22.5" y2="0"/><line x1="22.5" y1="40" x2="22.5" y2="45"/>`,
-        ports: [{ id: 'P', x: 22.5, y: 0 }, { id: 'T', x: 22.5, y: 45 }]
+      valve42: {
+        category: 'valves', name: '4/2 DCV Valve',
+        svg: `<rect x="5" y="5" width="25" height="25"/><rect x="30" y="5" width="25" height="25"/><line x1="12" y1="30" x2="12" y2="40"/><line x1="22" y1="30" x2="22" y2="40"/><line x1="38" y1="30" x2="38" y2="40"/><line x1="48" y1="30" x2="48" y2="40"/><line x1="12" y1="25" x2="12" y2="10"/><polygon points="12,10 9,14 15,14" fill="#000"/><line x1="22" y1="10" x2="22" y2="25"/><polygon points="22,25 19,21 25,21" fill="#000"/>`,
+        ports: [{ id: 'P', x: 12, y: 40 }, { id: 'T', x: 22, y: 40 }, { id: 'A', x: 38, y: 40 }, { id: 'B', x: 48, y: 40 }]
       },
+      valve32: {
+        category: 'valves', name: '3/2 DCV Valve',
+        svg: `<rect x="5" y="5" width="25" height="25"/><rect x="30" y="5" width="25" height="25"/><line x1="12" y1="30" x2="12" y2="40"/><line x1="22" y1="30" x2="22" y2="40"/><line x1="38" y1="30" x2="38" y2="40"/><line x1="12" y1="25" x2="12" y2="10"/><polygon points="12,10 9,14 15,14" fill="#000"/>`,
+        ports: [{ id: 'P', x: 12, y: 40 }, { id: 'T', x: 22, y: 40 }, { id: 'A', x: 38, y: 40 }]
+      },
+      relief: {
+        category: 'valves', name: 'Relief Valve',
+        svg: `<rect x="10" y="10" width="25" height="30"/><line x1="22.5" y1="0" x2="22.5" y2="10"/><line x1="22.5" y1="40" x2="22.5" y2="50"/><path d="M 35,20 L 42,20 L 42,30 L 35,30"/><path d="M 22.5,15 L 22.5,35"/><polygon points="22.5,35 19,30 26,30" fill="#000"/><line x1="5" y1="25" x2="10" y2="25" stroke-dasharray="2,2"/>`,
+        ports: [{ id: 'P', x: 22.5, y: 0 }, { id: 'T', x: 22.5, y: 50 }]
+      },
+      check: {
+        category: 'valves', name: 'Check Valve',
+        svg: `<polygon points="10,15 30,5 30,25"/><circle cx="15" cy="15" r="5" fill="#000"/><line x1="0" y1="15" x2="10" y2="15"/><line x1="30" y1="15" x2="40" y2="15"/>`,
+        ports: [{ id: 'A', x: 0, y: 15 }, { id: 'B', x: 40, y: 15 }]
+      },
+      check_pilot: {
+        category: 'valves', name: 'Pilot Check',
+        svg: `<polygon points="10,15 30,5 30,25"/><circle cx="15" cy="15" r="5" fill="#000"/><line x1="0" y1="15" x2="10" y2="15"/><line x1="30" y1="15" x2="40" y2="15"/><line x1="20" y1="20" x2="20" y2="35" stroke-dasharray="2,2"/>`,
+        ports: [{ id: 'A', x: 0, y: 15 }, { id: 'B', x: 40, y: 15 }, { id: 'X', x: 20, y: 35 }]
+      },
+      throttle: {
+        category: 'valves', name: 'Throttle Valve',
+        svg: `<path d="M 5,10 Q 20,22 35,10"/><path d="M 5,20 Q 20,8 35,20"/><line x1="0" y1="15" x2="10" y2="15"/><line x1="30" y1="15" x2="40" y2="15"/>`,
+        ports: [{ id: 'A', x: 0, y: 15 }, { id: 'B', x: 40, y: 15 }]
+      },
+
+      // CONDITIONING & TANKS
+      tank: {
+        category: 'conditioning', name: 'Reservoir Tank',
+        svg: `<path d="M 5,5 L 5,25 L 35,25 L 35,5"/><line x1="20" y1="5" x2="20" y2="0"/>`,
+        ports: [{ id: 'T', x: 20, y: 0 }]
+      },
+      accumulator: {
+        category: 'conditioning', name: 'Accumulator',
+        svg: `<rect x="10" y="5" width="20" height="40" rx="10"/><path d="M 10,25 Q 20,30 30,25"/><line x1="20" y1="45" x2="20" y2="52"/>`,
+        ports: [{ id: 'P', x: 20, y: 52 }]
+      },
+      filter: {
+        category: 'conditioning', name: 'Fluid Filter',
+        svg: `<polygon points="20,5 35,20 20,35 5,20"/><line x1="20" y1="5" x2="20" y2="35" stroke-dasharray="2,2"/><line x1="20" y1="0" x2="20" y2="5"/><line x1="20" y1="35" x2="20" y2="40"/>`,
+        ports: [{ id: 'A', x: 20, y: 0 }, { id: 'B', x: 20, y: 40 }]
+      },
+      cooler: {
+        category: 'conditioning', name: 'Cooler',
+        svg: `<polygon points="20,5 35,20 20,35 5,20"/><line x1="20" y1="0" x2="20" y2="5"/><line x1="20" y1="35" x2="20" y2="40"/><polygon points="12,20 18,17 18,23" fill="#000"/><polygon points="28,20 22,17 22,23" fill="#000"/>`,
+        ports: [{ id: 'A', x: 20, y: 0 }, { id: 'B', x: 20, y: 40 }]
+      },
+
+      // SENSORS
       gauge: {
-        name: 'Gauge',
-        svg: `<circle cx="20" cy="20" r="14" fill="#fff"/><line x1="14" y1="26" x2="26" y2="14"/><line x1="20" y1="34" x2="20" y2="40"/>`,
+        category: 'sensors', name: 'Pressure Gauge',
+        svg: `<circle cx="20" cy="20" r="14"/><line x1="14" y1="26" x2="26" y2="14"/><line x1="20" y1="34" x2="20" y2="40"/>`,
+        ports: [{ id: 'P', x: 20, y: 40 }]
+      },
+      flowmeter: {
+        category: 'sensors', name: 'Flow Meter',
+        svg: `<circle cx="20" cy="20" r="14"/><polygon points="12,20 28,14 28,26"/><line x1="20" y1="34" x2="20" y2="40"/>`,
+        ports: [{ id: 'P', x: 20, y: 40 }]
+      },
+      switch_press: {
+        category: 'sensors', name: 'Pressure Switch',
+        svg: `<rect x="10" y="10" width="20" height="20"/><circle cx="20" cy="20" r="4"/><line x1="20" y1="30" x2="20" y2="40"/>`,
         ports: [{ id: 'P', x: 20, y: 40 }]
       }
     };
 
+    function populateModal(category = 'all') {
+      const grid = document.getElementById('symbol-grid');
+      grid.innerHTML = '';
+      Object.keys(SYMBOLS).forEach(key => {
+        const item = SYMBOLS[key];
+        if (category === 'all' || item.category === category) {
+          const card = document.createElement('div');
+          card.className = 'card';
+          card.innerText = item.name;
+          card.onclick = () => addSymbol(key);
+          grid.appendChild(card);
+        }
+      });
+    }
+
+    function filterCategory(cat, tabEl) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      tabEl.classList.add('active');
+      populateModal(cat);
+    }
+
     function toggleModal(show) {
       document.getElementById('modal').classList.toggle('open', show);
+      if (show) populateModal('all');
     }
 
     function toggleHoseMode() {
@@ -196,7 +300,7 @@ l<!DOCTYPE html>
       const comp = {
         id: 'c_' + Date.now(),
         type,
-        x: Math.round((window.innerWidth / 2 - 30) / 20) * 20,
+        x: Math.round((window.innerWidth / 2 - 20) / 20) * 20,
         y: Math.round((window.innerHeight / 3) / 20) * 20
       };
       components.push(comp);
@@ -348,6 +452,7 @@ l<!DOCTYPE html>
     }
 
     document.getElementById('tb-date').innerText = new Date().toISOString().split('T')[0];
+    populateModal();
     loadDiagram();
   </script>
 </body>
