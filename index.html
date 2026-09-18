@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+l<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -22,6 +22,7 @@
     }
     button.active { background: #34c759; }
     button.secondary { background: #8e8e93; }
+    button.danger { background: #ff3b30; }
 
     /* Canvas Grid */
     svg#canvas {
@@ -35,6 +36,9 @@
     .component path, .component rect, .component circle, .component stroke {
       stroke: #000000; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round;
     }
+    .component.selected path, .component.selected rect, .component.selected circle {
+      stroke: #ff9500 !important; stroke-width: 3 !important;
+    }
     .component text { font-family: monospace; font-size: 11px; fill: #000000; stroke: none; font-weight: bold; }
     
     /* Connection Ports */
@@ -42,7 +46,8 @@
     .port.selected { fill: #ff9500; r: 7; }
 
     /* Hydraulic Hoses */
-    .hose { stroke: #007aff; stroke-width: 3; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+    .hose { stroke: #007aff; stroke-width: 3; fill: none; stroke-linecap: round; stroke-linejoin: round; cursor: pointer; }
+    .hose.selected { stroke: #ff3b30; stroke-width: 5; }
 
     /* ISO Title Block */
     #title-block {
@@ -81,6 +86,7 @@
     <div class="btn-group">
       <button onclick="toggleModal(true)">＋ Symbol</button>
       <button id="hose-btn" class="secondary" onclick="toggleHoseMode()">🔌 Hose</button>
+      <button class="danger" onclick="deleteSelected()">🗑️</button>
     </div>
     <div class="btn-group">
       <button class="secondary" onclick="saveDiagram()">💾 Save</button>
@@ -105,7 +111,7 @@
   </div>
 
   <!-- Main Canvas -->
-  <svg id="canvas">
+  <svg id="canvas" onclick="deselectAll(event)">
     <g id="hoses-layer"></g>
     <g id="components-layer"></g>
   </svg>
@@ -132,6 +138,8 @@
     let hoses = [];
     let hoseMode = false;
     let selectedPort = null;
+    let selectedComponentId = null;
+    let selectedHoseId = null;
     let activeDrag = null;
     let dragOffset = { x: 0, y: 0 };
 
@@ -197,17 +205,39 @@
       saveDiagram();
     }
 
-    // Touch Dragging via Pointer Events (Full iPhone Safari Compatibility)
+    function deselectAll(e) {
+      if (e && e.target.tagName !== 'svg') return;
+      selectedComponentId = null;
+      selectedHoseId = null;
+      render();
+    }
+
+    function deleteSelected() {
+      if (selectedComponentId) {
+        components = components.filter(c => c.id !== selectedComponentId);
+        hoses = hoses.filter(h => h.from.compId !== selectedComponentId && h.to.compId !== selectedComponentId);
+        selectedComponentId = null;
+      } else if (selectedHoseId) {
+        hoses = hoses.filter(h => h.id !== selectedHoseId);
+        selectedHoseId = null;
+      }
+      render();
+      saveDiagram();
+    }
+
     function onPointerDown(e, comp) {
       if (hoseMode) return;
+      e.stopPropagation();
+      selectedComponentId = comp.id;
+      selectedHoseId = null;
       activeDrag = comp;
       dragOffset.x = e.clientX - comp.x;
       dragOffset.y = e.clientY - comp.y;
+      render();
     }
 
     window.addEventListener('pointermove', (e) => {
       if (!activeDrag || hoseMode) return;
-      // Snap to 10px grid
       activeDrag.x = Math.round((e.clientX - dragOffset.x) / 10) * 10;
       activeDrag.y = Math.round((e.clientY - dragOffset.y) / 10) * 10;
       renderHoses();
@@ -222,7 +252,6 @@
       }
     });
 
-    // Hose Connection Engine
     function onPortClick(compId, portId, circle) {
       if (!hoseMode) return;
       if (!selectedPort) {
@@ -243,6 +272,13 @@
       }
     }
 
+    function selectHose(e, hoseId) {
+      e.stopPropagation();
+      selectedHoseId = hoseId;
+      selectedComponentId = null;
+      render();
+    }
+
     function getPortPos(compId, portId) {
       const c = components.find(x => x.id === compId);
       const p = SYMBOLS[c.type].ports.find(x => x.id === portId);
@@ -258,7 +294,8 @@
         const midY = (p1.y + p2.y) / 2;
         const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         path.setAttribute('d', `M ${p1.x} ${p1.y} L ${p1.x} ${midY} L ${p2.x} ${midY} L ${p2.x} ${p2.y}`);
-        path.setAttribute('class', 'hose');
+        path.setAttribute('class', 'hose' + (h.id === selectedHoseId ? ' selected' : ''));
+        path.addEventListener('click', (e) => selectHose(e, h.id));
         layer.appendChild(path);
       });
     }
@@ -270,7 +307,7 @@
         const tmpl = SYMBOLS[comp.type];
         const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
         g.setAttribute('id', comp.id);
-        g.setAttribute('class', 'component');
+        g.setAttribute('class', 'component' + (comp.id === selectedComponentId ? ' selected' : ''));
         g.setAttribute('transform', `translate(${comp.x}, ${comp.y})`);
         g.innerHTML = tmpl.svg + `<text x="0" y="-6">${tmpl.name}</text>`;
 
@@ -290,7 +327,6 @@
       renderHoses();
     }
 
-    // Auto-Save Storage Engine
     function saveDiagram() {
       const data = {
         components,
@@ -311,7 +347,6 @@
       }
     }
 
-    // Set today's date
     document.getElementById('tb-date').innerText = new Date().toISOString().split('T')[0];
     loadDiagram();
   </script>
